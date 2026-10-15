@@ -1,0 +1,22 @@
+{
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.venv": true,
+    "**/dist": true,
+    "**/node_modules": true,
+    "outputs": true,
+    "work": true
+  },
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.venv": true,
+    "**/dist": true,
+    "**/node_modules": true,
+    "outputs": true,
+    "work": true
+  },
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true
+}

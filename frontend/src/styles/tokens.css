@@ -1,0 +1,49 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --color-canvas: #07111f;
+  --color-surface: rgba(17, 31, 49, 0.82);
+  --color-surface-raised: #13243a;
+  --color-sidebar: rgba(8, 18, 31, 0.96);
+  --color-topbar: rgba(7, 17, 31, 0.78);
+  --color-subtle: rgba(156, 190, 220, 0.055);
+  --color-active: rgba(76, 157, 210, 0.11);
+  --color-drop: rgba(6, 17, 30, 0.28);
+  --color-drop-border: rgba(162, 195, 226, 0.22);
+  --color-progress-track: rgba(162, 195, 226, 0.12);
+  --color-text: #f3f8ff;
+  --color-muted: #9aacc2;
+  --color-faint: #60758b;
+  --color-border: rgba(162, 195, 226, 0.15);
+  --color-accent: #46d9f2;
+  --color-accent-strong: #4a8dff;
+  --color-success: #5ee0ac;
+  --color-warning: #ffc96b;
+  --color-danger: #ff7188;
+  --radius-card: 28px;
+  --radius-control: 14px;
+  --shadow-glow: 0 24px 100px rgba(27, 143, 218, 0.16);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-canvas: #f2f7fb;
+  --color-surface: rgba(255, 255, 255, 0.84);
+  --color-surface-raised: #ffffff;
+  --color-sidebar: rgba(248, 251, 254, 0.97);
+  --color-topbar: rgba(245, 249, 252, 0.84);
+  --color-subtle: rgba(38, 78, 112, 0.055);
+  --color-active: rgba(7, 142, 174, 0.09);
+  --color-drop: rgba(244, 249, 252, 0.65);
+  --color-drop-border: rgba(38, 78, 112, 0.23);
+  --color-progress-track: rgba(38, 78, 112, 0.12);
+  --color-text: #10243a;
+  --color-muted: #60758a;
+  --color-faint: #8a9aaa;
+  --color-border: rgba(38, 78, 112, 0.14);
+  --color-accent: #078eae;
+  --color-accent-strong: #3476e8;
+  --shadow-glow: 0 24px 100px rgba(52, 118, 232, 0.13);
+}
