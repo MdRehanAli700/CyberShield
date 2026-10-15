@@ -88,6 +88,17 @@ The browser sends requests to the FastAPI service. FastAPI validates and analyze
 
 The API status is available at <http://localhost:8000/health>; its interactive reference is at <http://localhost:8000/docs>. PostgreSQL, the API terminal, and the website terminal must remain running while you use the local app.
 
+## Run the backend tests
+
+From the project root in a VS Code PowerShell terminal, run:
+
+```powershell
+Set-Location .\backend
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+The tests cover local risk-scoring rules, link warnings, trusted-payee text matching, password/token helpers, and valid or expired sessions using a temporary in-memory database. They do not connect to your PostgreSQL database. A successful run ends with `OK`.
+
 ## Environment files
 
 - `backend/.env.example` documents the local PostgreSQL connection and optional Tesseract path.
