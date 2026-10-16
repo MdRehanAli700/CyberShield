@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 import csv
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -17,19 +16,13 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from . import models
-from .database import Base, engine, get_db
+from .database import get_db
 from .ocr import ImageTooLargeError, MAX_IMAGE_BYTES, OcrTimeoutError, OcrUnavailableError, UnreadableImageError, image_to_text
 from .risk import assess_payment, recommended_action
 from .schemas import AuthCredentials, AuthRead, CheckCreate, CheckRead, PasswordChange, PasswordVerify, PayeeCreate, PayeeRead, UserRead
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    yield
-
-
-app = FastAPI(title="CyberShield VerifyPay API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="CyberShield VerifyPay API", version="0.2.0")
 default_cors_origins = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
 cors_origins = [origin.strip().rstrip("/") for origin in os.getenv("CORS_ORIGINS", default_cors_origins).split(",") if origin.strip()]
 app.add_middleware(

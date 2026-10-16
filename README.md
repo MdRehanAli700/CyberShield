@@ -63,8 +63,30 @@ The browser sends requests to the FastAPI service. FastAPI validates and analyze
    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
-4. Install Tesseract using the [official installation guide](https://github.com/tesseract-ocr/tessdoc/blob/main/Installation.md). If VerifyPay cannot find it, add the full path to `tesseract.exe` as `TESSERACT_CMD` in `backend/.env`.
-5. Open another VS Code terminal in `frontend` and install the website packages:
+4. Initialize the database schema before starting the API:
+
+   - For the existing `VerifyPay` database used by this project, first make a database backup and confirm its tables match `alembic/versions/0001_initial_schema.py`. Then, from the `backend` terminal, run this once. It records the current schema version without creating or changing the tables:
+
+     ```powershell
+     .\.venv\Scripts\python.exe -m alembic stamp head
+     ```
+
+   - For a new, empty database, run this instead to create the tables from the migration files:
+
+     ```powershell
+     .\.venv\Scripts\python.exe -m alembic upgrade head
+     ```
+
+   For later model changes, generate a candidate migration from the `backend` terminal:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m alembic revision --autogenerate -m "short description"
+   ```
+
+   Review the generated migration before applying it with `upgrade head`. Do not run `upgrade head` against the existing database before recording its baseline with `stamp head`; the initial migration would try to create tables that already exist.
+
+5. Install Tesseract using the [official installation guide](https://github.com/tesseract-ocr/tessdoc/blob/main/Installation.md). If VerifyPay cannot find it, add the full path to `tesseract.exe` as `TESSERACT_CMD` in `backend/.env`.
+6. Open another VS Code terminal in `frontend` and install the website packages:
 
    ```powershell
    npm install
@@ -97,7 +119,7 @@ Set-Location .\backend
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The tests cover local risk-scoring rules, link warnings, trusted-payee text matching, password/token helpers, and valid or expired sessions using a temporary in-memory database. They do not connect to your PostgreSQL database. A successful run ends with `OK`.
+The tests cover local risk-scoring rules, link warnings, trusted-payee text matching, password/token helpers, valid or expired sessions, and account separation for history, exports, payees, statistics, and deletes. Database checks use a temporary in-memory SQLite database and do not connect to your PostgreSQL database. A successful run ends with `OK`.
 
 ## Environment files
 
@@ -105,7 +127,7 @@ The tests cover local risk-scoring rules, link warnings, trusted-payee text matc
 - `frontend/.env.example` documents the optional API address for a hosted website and the local Vite proxy target.
 - Copy each example to `.env` only when needed. Never commit passwords or connection strings.
 
-The API creates missing database tables at startup. This prototype does not yet use database migrations.
+Database changes are tracked in `backend/alembic/`. The API does not create tables at startup; initialize a fresh database with the `upgrade head` command above and apply reviewed migrations before starting the API. The Docker image includes the migration files, but does not apply them automatically.
 
 ## Hosting status
 

@@ -22,6 +22,7 @@ The backend is a FastAPI application. It validates request and response shapes w
 | `frontend/public/` | Static assets such as the app icon |
 | `backend/app/main.py` | FastAPI setup, authentication, and API routes |
 | `backend/app/models.py` | SQLAlchemy database tables |
+| `backend/alembic/` | Versioned database schema migrations |
 | `backend/app/schemas.py` | Pydantic request and response validation |
 | `backend/app/risk.py` | Explainable text-based warning rules |
 | `backend/app/ocr.py` | Image validation and Tesseract OCR |
@@ -30,6 +31,6 @@ The backend is a FastAPI application. It validates request and response shapes w
 
 - Risk levels are heuristic signals, not fraud verdicts or payment verification.
 - URL checks inspect submitted text and do not visit or reputation-check a website.
-- Database tables are created at startup; schema migrations are not configured yet.
+- Alembic migration files track database schema changes. The API does not create tables at startup; initialize new databases with the migrations first.
 - Email verification and forgotten-password recovery are not implemented.
 - The app is an educational prototype and is not ready for sensitive production data.
