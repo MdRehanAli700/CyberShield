@@ -62,6 +62,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .welcome-row h1 { margin: 0; font-size: clamp(25px, 3.2vw, 34px); letter-spacing: -.045em; }
 .wave { color: var(--color-warning); font-size: .78em; }
 .welcome-subtitle { margin: 9px 0 0; color: var(--color-muted); font-size: 12px; }
+.public-demo-notice { display: flex; align-items: flex-start; gap: 10px; margin: -10px 0 22px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--color-warning) 34%, var(--color-border)); border-radius: 12px; background: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface)); color: var(--color-warning); }
+.public-demo-notice > span { display: grid; gap: 3px; }
+.public-demo-notice strong { font-size: 11px; }
+.public-demo-notice small { color: var(--color-muted); font-size: 10px; line-height: 1.5; }
 .primary-button, .hero-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 0 15px; border: 1px solid rgba(90,180,255,.34); border-radius: 11px; background: linear-gradient(105deg, #1788b8, #376de0); box-shadow: 0 8px 25px rgba(35,116,202,.18), inset 0 1px rgba(255,255,255,.19); color: white; font-size: 11px; font-weight: 650; cursor: pointer; transition: transform .18s ease, filter .18s ease; }
 .primary-button:hover, .hero-button:hover { transform: translateY(-1px); filter: brightness(1.08); }
 .hero-card { position: relative; display: flex; min-height: 292px; overflow: hidden; align-items: center; border: 1px solid rgba(105,188,230,.19); border-radius: 21px; background: linear-gradient(112deg, #102b43 0%, #10243c 49%, #132444 100%); box-shadow: var(--shadow-glow), inset 0 1px rgba(255,255,255,.05); }

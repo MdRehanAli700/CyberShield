@@ -696,7 +696,7 @@ function App() {
     {authMode === 'login' && <p className="auth-switch"><button type="button" disabled={authBusy} onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthFeedback('') }}>Forgot password?</button></p>}
     <p className="auth-switch">{authMode === 'login' || authMode === 'forgot' || authMode === 'reset' ? 'New to VerifyPay?' : 'Already have an account?'} <button type="button" disabled={authBusy} onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError(''); setAuthFeedback(''); setAuthPassword(''); setAuthConfirmPassword('') }}>{authMode === 'register' ? 'Sign in' : 'Create account'}</button></p>
     {(authMode === 'forgot' || authMode === 'reset') && <p className="auth-switch"><button type="button" disabled={authBusy} onClick={() => { setAuthMode('login'); setAuthError(''); setAuthFeedback(''); setAuthPassword(''); setAuthConfirmPassword('') }}>Back to sign in</button></p>}
-    <p className="auth-local-note">Password reset links expire after 30 minutes and can only be used once.</p>
+    <p className="auth-local-note">{authMode === 'reset' ? 'Password reset links expire after 30 minutes and can only be used once.' : 'Public learning demo: use a unique password and fake payment examples. Do not enter real payment details or sensitive personal information.'}</p>
   </form></main>
 
   return (
@@ -776,6 +776,7 @@ function App() {
             </section>}
           </> : <>
           <section className="welcome-row"><div><p className="eyebrow">{todayLabel}</p><h1>{welcomeGreeting} <span className="wave">✦</span></h1><p className="welcome-subtitle">A clearer view of your payment safety starts here.</p></div><button className="primary-button" type="button" onClick={openVerifier}><Plus size={18}/> Verify a payment</button></section>
+          <div className="public-demo-notice" role="note"><AlertTriangle size={17}/><span><strong>Public learning demo</strong><small>Use fake payment examples only. VerifyPay is not a fraud detector and cannot confirm that a payment is safe.</small></span></div>
 
           <section className="hero-card"><div className="hero-copy"><span className="hero-kicker"><ShieldCheck size={15}/> YOUR PAYMENT SAFETY</span><h2>Pause. Check.<br/><span>Pay with confidence.</span></h2><p>Review a payment request before you send money. We’ll help you spot the details that deserve a closer look.</p><button className="hero-button" type="button" onClick={openVerifier}>Start a payment check <ArrowUpRight size={16}/></button></div><div className="hero-art" aria-hidden="true"><div className="orbit orbit-outer"/><div className="orbit orbit-inner"/><div className="hero-glass"><ShieldCheck size={62} strokeWidth={1.4}/><span className="hero-glint"/></div><div className="floating-chip chip-one"><span className="chip-check"><FileCheck2 size={14}/></span><span><strong>Details checked</strong><small>Private by design</small></span></div><div className="floating-chip chip-two"><span className="pulse-dot"/><span><strong>Ready when you are</strong></span></div></div><div className="hero-glow"/></section>
 
