@@ -17,6 +17,11 @@ if not DATABASE_URL or "CHANGE_ME" in DATABASE_URL:
         "DATABASE_URL is missing or still uses CHANGE_ME. Set your real PostgreSQL password in backend/.env."
     )
 
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 

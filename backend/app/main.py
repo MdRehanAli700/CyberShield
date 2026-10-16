@@ -2,16 +2,20 @@ import csv
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
+import json
 from io import StringIO
 import os
 import re
 import secrets
 import smtplib
 from email.message import EmailMessage
+from pathlib import Path
 from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -61,8 +65,36 @@ def token_digest(token: str) -> str:
 
 
 def send_password_reset_email(recipient: str, reset_url: str) -> None:
-    host = os.getenv("SMTP_HOST", "").strip()
     sender = os.getenv("SMTP_FROM", "").strip()
+    provider = os.getenv("EMAIL_PROVIDER", "smtp").strip().casefold()
+    body = (
+        "We received a request to reset your VerifyPay password.\n\n"
+        f"Open this link within 30 minutes to choose a new password:\n{reset_url}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+
+    if provider == "brevo":
+        api_key = os.getenv("BREVO_API_KEY", "").strip()
+        if not api_key or not sender:
+            raise RuntimeError("Password reset email is not configured.")
+        request = Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=json.dumps({
+                "sender": {"name": "CyberShield VerifyPay", "email": sender},
+                "to": [{"email": recipient}],
+                "subject": "Reset your VerifyPay password",
+                "textContent": body,
+            }).encode("utf-8"),
+            headers={"accept": "application/json", "api-key": api_key, "content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(request, timeout=15):
+            pass
+        return
+
+    if provider != "smtp":
+        raise RuntimeError("EMAIL_PROVIDER must be smtp or brevo.")
+    host = os.getenv("SMTP_HOST", "").strip()
     if not host or not sender:
         raise RuntimeError("Password reset email is not configured.")
     try:
@@ -74,11 +106,7 @@ def send_password_reset_email(recipient: str, reset_url: str) -> None:
     message["Subject"] = "Reset your VerifyPay password"
     message["From"] = sender
     message["To"] = recipient
-    message.set_content(
-        "We received a request to reset your VerifyPay password.\n\n"
-        f"Open this link within 30 minutes to choose a new password:\n{reset_url}\n\n"
-        "If you did not request this, you can ignore this email."
-    )
+    message.set_content(body)
     username = os.getenv("SMTP_USERNAME", "").strip()
     password = os.getenv("SMTP_PASSWORD", "")
     if port == 465:
@@ -134,7 +162,7 @@ def health_check(db: Session = Depends(get_db)) -> dict[str, str]:
     return {"status": "ok", "service": "verifypay-api", "database": "connected"}
 
 
-@app.get("/")
+@app.get("/api")
 def api_home() -> dict[str, str]:
     return {
         "service": "CyberShield VerifyPay API",
@@ -234,7 +262,7 @@ def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(
     db.add(reset_token)
     db.commit()
 
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    frontend_url = (os.getenv("FRONTEND_URL") or os.getenv("RENDER_EXTERNAL_URL") or "http://localhost:5173").rstrip("/")
     reset_url = f"{frontend_url}/?{urlencode({'reset_token': raw_token})}"
     try:
         send_password_reset_email(user.email, reset_url)
@@ -539,3 +567,8 @@ def delete_payee(payee_id: int, current_user: models.User = Depends(get_current_
     db.delete(payee)
     db.commit()
     return Response(status_code=204)
+
+
+frontend_build = Path(__file__).resolve().parent.parent / "static"
+if frontend_build.is_dir():
+    app.mount("/", StaticFiles(directory=frontend_build, html=True), name="frontend")

@@ -129,10 +129,12 @@ The tests cover local risk-scoring rules, link warnings, trusted-payee text matc
 - `frontend/.env.example` documents the optional API address for a hosted website and the local Vite proxy target.
 - Copy each example to `.env` only when needed. Never commit passwords or connection strings.
 
-Database changes are tracked in `backend/alembic/`. The API does not create tables at startup; initialize a fresh database with the `upgrade head` command above and apply reviewed migrations before starting the API. The Docker image includes the migration files, but does not apply them automatically.
+Database changes are tracked in `backend/alembic/`. The API does not create tables at startup. For a fresh database, run the `upgrade head` command above. The deployment Docker image applies migrations before starting the API.
 
 ## Hosting status
 
-This repository is prepared for future hosting, but the app has not been published. A possible no-cost demo arrangement is a Render static site, a Render free API service, and a Neon free PostgreSQL database. The API may sleep when idle, and free-plan limits can interrupt access. Read the providers' current terms and limits before using them: [Render free services](https://render.com/docs/free) and [Neon plans](https://neon.com/pricing).
+The app has a Render Blueprint for a public demo. It serves the React site and API from one service, uses Neon for persistent PostgreSQL data, and uses Brevo's HTTPS API for reset emails. The deployment needs a GitHub repository, a Neon database connection string, and a Brevo API key and verified sender; secrets are entered in provider dashboards, not saved in this repository. Render's free web service can sleep after 15 minutes without traffic and may take about a minute to wake. Neon can pause its database compute when idle. Check the providers' current limits before inviting users: [Render free services](https://render.com/docs/free), [Neon plans](https://neon.com/pricing), and [Brevo free email limits](https://help.brevo.com/hc/en-us/articles/208580669-FAQs-What-are-the-limits-of-the-Free-plan).
+
+The deployed site is a public demo for learning. Do not submit real payment details, passwords used elsewhere, or sensitive personal information. VerifyPay is not a fraud detector or a production payment service. Email verification and automated protection against heavy sign-up or reset traffic are not implemented yet.
 
 This setup is for learning and demonstrations, not a dependable production service. Do not use it for real payment decisions or sensitive production data.

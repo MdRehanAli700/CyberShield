@@ -11,6 +11,8 @@ The frontend is a Vite single-page application. `src/main.jsx` mounts the app an
 
 The backend is a FastAPI application. It validates request and response shapes with Pydantic schemas, uses SQLAlchemy models and sessions for PostgreSQL, and keeps risk-pattern analysis and OCR in separate modules. The API stores user accounts, hashed passwords, hashed session tokens, payment-check summaries, and trusted payees. Raw payment text and OCR output are not stored in PostgreSQL.
 
+For the hosted demo, the Docker image builds the frontend and serves it from FastAPI on the same origin. It applies reviewed Alembic migrations when the container starts. Password reset email uses SMTP for local development or Brevo's HTTPS API for the free hosted service.
+
 ## Main folders
 
 | Path | Responsibility |
