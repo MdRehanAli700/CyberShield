@@ -296,6 +296,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .auth-submit { justify-content: center; width: 100%; margin-top: 7px; }
 .auth-switch { margin: 4px 0; color: var(--color-muted); font-size: 11px; text-align: center; }
 .auth-switch button { padding: 0; border: 0; background: transparent; color: var(--color-accent); cursor: pointer; }
+.auth-success { margin: 4px 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent); border-radius: 10px; color: var(--color-accent); font-size: 11px; line-height: 1.5; }
 .auth-local-note { margin: 4px 0 0; padding-top: 12px; border-top: 1px solid var(--color-border); text-align: center; }
 .auth-loading { display: grid; min-height: 100vh; place-items: center; color: var(--color-muted); font-size: 13px; }
 .settings-layout { display: grid; max-width: 790px; gap: 14px; }

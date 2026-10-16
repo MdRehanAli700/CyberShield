@@ -10,10 +10,11 @@ CyberShield VerifyPay is a payment-message review prototype. It lets a signed-in
 - Read uploaded images with Tesseract OCR.
 - Show a preliminary low, medium, or high pattern signal with reasons and a suggested next step.
 - Create an account, sign in and out, change a password, and keep each account's history and trusted payees separate.
+- Request an expiring, single-use password reset link by email.
 - Search and filter history, export it as CSV, and switch between dark and light themes.
 - Avoid saving the submitted text or OCR output; save a result summary for the signed-in account.
 
-Email verification and forgotten-password recovery are not available yet. URL checks inspect text only and do not visit the submitted links.
+Email verification is not available yet. Password reset requires SMTP settings in `backend/.env`. URL checks inspect text only and do not visit the submitted links.
 
 ## How it is organized
 
@@ -86,7 +87,8 @@ The browser sends requests to the FastAPI service. FastAPI validates and analyze
    Review the generated migration before applying it with `upgrade head`. Do not run `upgrade head` against the existing database before recording its baseline with `stamp head`; the initial migration would try to create tables that already exist.
 
 5. Install Tesseract using the [official installation guide](https://github.com/tesseract-ocr/tessdoc/blob/main/Installation.md). If VerifyPay cannot find it, add the full path to `tesseract.exe` as `TESSERACT_CMD` in `backend/.env`.
-6. Open another VS Code terminal in `frontend` and install the website packages:
+6. To enable forgotten-password recovery, fill in `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM` in `backend/.env`. Set `FRONTEND_URL` to the local website address or your deployed HTTPS frontend. Keep these settings private; never commit `.env`.
+7. Open another VS Code terminal in `frontend` and install the website packages:
 
    ```powershell
    npm install

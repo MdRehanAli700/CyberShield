@@ -68,3 +68,12 @@ class PasswordChange(BaseModel):
 
 class PasswordVerify(BaseModel):
     current_password: str = Field(min_length=10, max_length=128)
+
+
+class PasswordResetRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+
+
+class PasswordResetComplete(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    new_password: str = Field(min_length=10, max_length=128)

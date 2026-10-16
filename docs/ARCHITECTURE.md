@@ -32,5 +32,5 @@ The backend is a FastAPI application. It validates request and response shapes w
 - Risk levels are heuristic signals, not fraud verdicts or payment verification.
 - URL checks inspect submitted text and do not visit or reputation-check a website.
 - Alembic migration files track database schema changes. The API does not create tables at startup; initialize new databases with the migrations first.
-- Email verification and forgotten-password recovery are not implemented.
+- Password recovery uses short-lived, single-use reset tokens; email verification is not implemented.
 - The app is an educational prototype and is not ready for sensitive production data.

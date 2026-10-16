@@ -6,6 +6,9 @@ from io import StringIO
 import os
 import re
 import secrets
+import smtplib
+from email.message import EmailMessage
+from urllib.parse import urlencode
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +22,7 @@ from . import models
 from .database import get_db
 from .ocr import ImageTooLargeError, MAX_IMAGE_BYTES, OcrTimeoutError, OcrUnavailableError, UnreadableImageError, image_to_text
 from .risk import assess_payment, recommended_action
-from .schemas import AuthCredentials, AuthRead, CheckCreate, CheckRead, PasswordChange, PasswordVerify, PayeeCreate, PayeeRead, UserRead
+from .schemas import AuthCredentials, AuthRead, CheckCreate, CheckRead, PasswordChange, PasswordResetComplete, PasswordResetRequest, PasswordVerify, PayeeCreate, PayeeRead, UserRead
 
 
 app = FastAPI(title="CyberShield VerifyPay API", version="0.2.0")
@@ -55,6 +58,40 @@ def password_matches(password: str, stored: str) -> bool:
 
 def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def send_password_reset_email(recipient: str, reset_url: str) -> None:
+    host = os.getenv("SMTP_HOST", "").strip()
+    sender = os.getenv("SMTP_FROM", "").strip()
+    if not host or not sender:
+        raise RuntimeError("Password reset email is not configured.")
+    try:
+        port = int(os.getenv("SMTP_PORT", "587"))
+    except ValueError as exc:
+        raise RuntimeError("SMTP_PORT must be a valid port number.") from exc
+
+    message = EmailMessage()
+    message["Subject"] = "Reset your VerifyPay password"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        "We received a request to reset your VerifyPay password.\n\n"
+        f"Open this link within 30 minutes to choose a new password:\n{reset_url}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+    username = os.getenv("SMTP_USERNAME", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "")
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+            if username:
+                server.login(username, password)
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.starttls()
+            if username:
+                server.login(username, password)
+            server.send_message(message)
 
 
 def create_session(user: models.User, db: Session) -> dict:
@@ -177,6 +214,57 @@ def change_password(
     db.commit()
     db.refresh(current_user)
     return create_session(current_user, db)
+
+
+@app.post("/api/auth/password-reset", status_code=202)
+def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(get_db)):
+    # Keep the response the same for known and unknown addresses to limit account discovery.
+    email = payload.email.strip().casefold()
+    user = db.scalar(select(models.User).where(models.User.email == email))
+    if user is None:
+        return {"message": "If an account matches that email, a reset link will be sent."}
+
+    raw_token = secrets.token_urlsafe(32)
+    reset_token = models.PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_digest(raw_token),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    db.query(models.PasswordResetToken).filter(models.PasswordResetToken.user_id == user.id).delete(synchronize_session=False)
+    db.add(reset_token)
+    db.commit()
+
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    reset_url = f"{frontend_url}/?{urlencode({'reset_token': raw_token})}"
+    try:
+        send_password_reset_email(user.email, reset_url)
+    except (OSError, RuntimeError, smtplib.SMTPException):
+        db.delete(reset_token)
+        db.commit()
+        return {"message": "If an account matches that email, a reset link will be sent."}
+    return {"message": "If an account matches that email, a reset link will be sent."}
+
+
+@app.post("/api/auth/password-reset/complete", status_code=204)
+def complete_password_reset(payload: PasswordResetComplete, db: Session = Depends(get_db)):
+    reset_token = db.scalar(
+        select(models.PasswordResetToken).where(
+            models.PasswordResetToken.token_hash == token_digest(payload.token),
+            models.PasswordResetToken.expires_at > datetime.now(timezone.utc),
+        ).with_for_update()
+    )
+    if reset_token is None:
+        raise HTTPException(status_code=400, detail="This reset link is invalid or expired. Request a new one.")
+    user = db.get(models.User, reset_token.user_id)
+    if user is None:
+        db.delete(reset_token)
+        db.commit()
+        raise HTTPException(status_code=400, detail="This reset link is invalid or expired. Request a new one.")
+    user.password_hash = password_digest(payload.new_password)
+    db.query(models.UserSession).filter(models.UserSession.user_id == user.id).delete(synchronize_session=False)
+    db.query(models.PasswordResetToken).filter(models.PasswordResetToken.user_id == user.id).delete(synchronize_session=False)
+    db.commit()
+    return Response(status_code=204)
 
 
 @app.post("/api/checks", response_model=CheckRead)
