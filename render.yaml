@@ -20,15 +20,11 @@ services:
         sync: false
       - key: OAUTH_API_BASE_URL
         sync: false
+      - key: CORS_ORIGINS
+        sync: false
       - key: OAUTH_COOKIE_SECURE
         value: "true"
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: MICROSOFT_CLIENT_ID
-        sync: false
-      - key: MICROSOFT_CLIENT_SECRET
-        sync: false
-      - key: MICROSOFT_TENANT_ID
         sync: false
