@@ -1,0 +1,11 @@
+{
+  "folders": [
+    { "name": "VS Code Settings", "path": "../" },
+    { "name": "Backend", "path": "../../backend" },
+    { "name": "Documentation", "path": "../../docs" },
+    { "name": "Frontend", "path": "../../frontend" },
+    { "name": "Outputs", "path": "../../outputs" },
+    { "name": "Work Files", "path": "../../work" }
+  ],
+  "settings": {}
+}

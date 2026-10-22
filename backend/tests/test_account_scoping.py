@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.database import Base
-from app.main import delete_check, delete_payee, export_checks, get_stats, list_checks, list_payees
+from app.main import create_payee, delete_check, delete_payee, export_checks, get_stats, list_checks, list_payees, update_payee
+from app.schemas import PayeeCreate
 
 
 class AccountScopingTests(unittest.TestCase):
@@ -116,6 +117,35 @@ class AccountScopingTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 404)
         self.assertIsNotNone(self.db.get(models.TrustedPayee, other_payee.id))
+
+    def test_payee_identifier_type_is_saved_and_returned(self):
+        result = create_payee(
+            payload=PayeeCreate(
+                name="Maya Rao",
+                payment_identifier="maya@bank",
+                identifier_type="UPI ID",
+            ),
+            current_user=self.owner,
+            db=self.db,
+        )
+
+        self.assertEqual(result.identifier_type, "UPI ID")
+
+    def test_payee_identifier_type_can_be_updated(self):
+        payee = self.add_payee(self.owner, "Maya")
+
+        result = update_payee(
+            payee_id=payee.id,
+            payload=PayeeCreate(
+                name="Maya",
+                payment_identifier="maya@example.test",
+                identifier_type="Contact",
+            ),
+            current_user=self.owner,
+            db=self.db,
+        )
+
+        self.assertEqual(result.identifier_type, "Contact")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,11 @@ RECIPIENT_PHRASE_PATTERN = re.compile(
     r"\b(?:transfer\s+to|pay\s+to|send\s+to)\s+([^\r\n,;.!]{2,80})",
     re.IGNORECASE,
 )
+RECIPIENT_AMOUNT_PHRASE_PATTERN = re.compile(
+    r"\b(?:transfer|pay|send)\s+(?:(?:INR|Rs\.?|USD|EUR|GBP)\s*|[₹$€£]\s*)?"
+    r"\d[\d,]*(?:\.\d{1,2})?\s+to\s+([^\r\n,;.!]{2,80})",
+    re.IGNORECASE,
+)
 SHORTENER_HOSTS = {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "cutt.ly", "shorturl.at"}
 EMBEDDED_URL_PATTERN = re.compile(r"\b(?:https?://|www\.)[^\s<>()\[\]{}\"']+", re.IGNORECASE)
 PAYMENT_DOMAIN_TERMS = {"upi", "pay", "payment", "wallet", "bank", "gpay", "phonepe", "paytm", "paypal", "stripe", "venmo", "cashapp"}
@@ -32,10 +37,19 @@ def extract_amount(content: str) -> str | None:
 
 
 def extract_recipient(content: str) -> str | None:
-    match = RECIPIENT_LINE_PATTERN.search(content) or RECIPIENT_PHRASE_PATTERN.search(content)
+    match = (
+        RECIPIENT_LINE_PATTERN.search(content)
+        or RECIPIENT_AMOUNT_PHRASE_PATTERN.search(content)
+        or RECIPIENT_PHRASE_PATTERN.search(content)
+    )
     if not match:
         return None
-    candidate = re.split(r"\s{2,}|\s+(?:amount|total|date|reference|invoice)\s*[:\-]", match.group(1), maxsplit=1, flags=re.IGNORECASE)[0]
+    candidate = re.split(
+        r"\s{2,}|\s+(?:amount|total|date|reference|invoice)\s*[:\-]|\s+(?:for|towards|regarding)\b",
+        match.group(1),
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
     candidate = re.sub(r"\s+", " ", candidate).strip(" .:-")
     return candidate[:100] if len(candidate) >= 2 else None
 
