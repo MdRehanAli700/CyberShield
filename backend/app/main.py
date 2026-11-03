@@ -35,7 +35,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import models
 from .database import get_db
 from .ocr import ImageTooLargeError, MAX_IMAGE_BYTES, OcrTimeoutError, OcrUnavailableError, UnreadableImageError, image_to_text
-from .risk import assess_payment, recommended_action
+from .risk import assess_payment, extract_time, recommended_action
 from .rate_limit import check_auth_rate_limit
 from .schemas import AuthCredentials, AuthRead, CheckCreate, CheckRead, EmailVerificationComplete, MFALoginChallengeComplete, OAuthHandoffExchange, PasswordChange, PasswordResetComplete, PasswordResetRequest, PasswordVerify, PayeeCreate, PayeeRead, PreferencesUpdate, ProfileUpdate, TOTPDisable, TOTPEnable, UserRead
 
@@ -985,6 +985,7 @@ async def create_image_check(file: UploadFile = File(...), current_user: models.
     result = CheckRead.model_validate(check).model_dump()
     result["ocr_text_preview"] = recognized_text[:1200]
     result["detected_amount"] = amount
+    result["detected_time"] = extract_time(recognized_text)
     result["recipient_guess"] = recipient
     result["trusted_payee_match"] = trusted_match
     result["link_domain"] = link_domain

@@ -19,14 +19,18 @@
         "cwd": "${workspaceFolder}/backend"
       },
       "isBackground": true,
-      "problemMatcher": [],
+      "problemMatcher": {
+        "owner": "verifyPay-backend",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "endsPattern": "Uvicorn running on"
+        }
+      },
       "presentation": {
         "panel": "dedicated",
         "reveal": "always"
       },
-      "runOptions": {
-        "runOn": "folderOpen"
-      }
     },
     {
       "label": "VerifyPay: Start website",
@@ -40,14 +44,31 @@
         "cwd": "${workspaceFolder}/frontend"
       },
       "isBackground": true,
-      "problemMatcher": [],
+      "problemMatcher": {
+        "owner": "verifyPay-frontend",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "endsPattern": "Local:.*http://localhost:[0-9]+/"
+        }
+      },
       "presentation": {
         "panel": "dedicated",
         "reveal": "always"
       },
-      "runOptions": {
-        "runOn": "folderOpen"
-      }
+    },
+    {
+      "label": "VerifyPay: Start full app",
+      "dependsOn": [
+        "VerifyPay: Start backend",
+        "VerifyPay: Start website"
+      ],
+      "dependsOrder": "parallel",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
     }
   ]
 }

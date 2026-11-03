@@ -19,6 +19,7 @@ class CheckRead(BaseModel):
     created_at: datetime
     ocr_text_preview: str | None = None
     detected_amount: str | None = None
+    detected_time: str | None = None
     recipient_guess: str | None = None
     trusted_payee_match: str | None = None
     link_domain: str | None = None

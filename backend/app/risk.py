@@ -9,7 +9,7 @@ AMOUNT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 LABELED_AMOUNT_PATTERN = re.compile(
-    r"\b(?:amount|total|payment)\s*[:\-]?\s*(?:(?:INR|Rs\.?|USD|EUR|GBP)\s*|[₹$€£]\s*)?\d[\d,]*(?:\.\d{1,2})?",
+    r"\b(?:amount|total|payment)(?:\s+of)?\s*[:\-]?\s*(?:(?:INR|Rs\.?|USD|EUR|GBP)\s*|[₹$€£]\s*)?\d[\d,]*(?:\.\d{1,2})?",
     re.IGNORECASE,
 )
 RECIPIENT_LINE_PATTERN = re.compile(
@@ -24,6 +24,7 @@ RECIPIENT_AMOUNT_PHRASE_PATTERN = re.compile(
     r"\d[\d,]*(?:\.\d{1,2})?\s+to\s+([^\r\n,;.!]{2,80})",
     re.IGNORECASE,
 )
+TIME_PATTERN = re.compile(r"\b(?:0?[1-9]|1[0-2]):[0-5]\d\s*(?:a\.?m\.?|p\.?m\.?)\b|\b(?:[01]?\d|2[0-3]):[0-5]\d\b", re.IGNORECASE)
 SHORTENER_HOSTS = {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "cutt.ly", "shorturl.at"}
 EMBEDDED_URL_PATTERN = re.compile(r"\b(?:https?://|www\.)[^\s<>()\[\]{}\"']+", re.IGNORECASE)
 PAYMENT_DOMAIN_TERMS = {"upi", "pay", "payment", "wallet", "bank", "gpay", "phonepe", "paytm", "paypal", "stripe", "venmo", "cashapp"}
@@ -33,6 +34,11 @@ MAX_LINKS_PER_CHECK = 5
 
 def extract_amount(content: str) -> str | None:
     match = AMOUNT_PATTERN.search(content) or LABELED_AMOUNT_PATTERN.search(content)
+    return " ".join(match.group(0).split()) if match else None
+
+
+def extract_time(content: str) -> str | None:
+    match = TIME_PATTERN.search(content)
     return " ".join(match.group(0).split()) if match else None
 
 
