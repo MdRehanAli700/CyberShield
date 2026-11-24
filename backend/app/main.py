@@ -35,7 +35,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import models
 from .database import get_db
 from .ocr import ImageTooLargeError, MAX_IMAGE_BYTES, OcrTimeoutError, OcrUnavailableError, UnreadableImageError, image_to_text
-from .risk import assess_payment, extract_time, recommended_action
+from .risk import assess_payment, extract_payment_evidence, extract_time, recommended_action
 from .rate_limit import check_auth_rate_limit
 from .schemas import AuthCredentials, AuthRead, CheckCreate, CheckRead, EmailVerificationComplete, MFALoginChallengeComplete, OAuthHandoffExchange, PasswordChange, PasswordResetComplete, PasswordResetRequest, PasswordVerify, PayeeCreate, PayeeRead, PreferencesUpdate, ProfileUpdate, TOTPDisable, TOTPEnable, UserRead
 
@@ -937,7 +937,7 @@ def create_check(payload: CheckCreate, current_user: models.User = Depends(get_c
     db.commit()
     db.refresh(check)
     result = CheckRead.model_validate(check).model_dump()
-    result.update({"detected_amount": amount, "recipient_guess": recipient, "trusted_payee_match": trusted_match, "link_domain": link_domain, "link_domains": link_domains, "findings": findings, "recommended_action": recommended_action(risk_level, findings)})
+    result.update({"detected_amount": amount, "recipient_guess": recipient, "trusted_payee_match": trusted_match, "link_domain": link_domain, "link_domains": link_domains, "findings": findings, "recommended_action": recommended_action(risk_level, findings), "evidence": [item.model_dump() for item in extract_payment_evidence(content, payees)]})
     return result
 
 
@@ -967,8 +967,9 @@ async def create_image_check(file: UploadFile = File(...), current_user: models.
     payees = db.scalars(
         select(models.TrustedPayee).where(models.TrustedPayee.owner_key == str(current_user.id))
     ).all()
+    analysis_text = recognized_text[:12000]
     risk_level, risk_score, explanation, amount, recipient, trusted_match, link_domain, findings, link_domains = assess_payment(
-        "file", recognized_text[:12000], payees
+        "file", analysis_text, payees
     )
     check = models.PaymentCheck(
         owner_key=str(current_user.id),
@@ -985,13 +986,14 @@ async def create_image_check(file: UploadFile = File(...), current_user: models.
     result = CheckRead.model_validate(check).model_dump()
     result["ocr_text_preview"] = recognized_text[:1200]
     result["detected_amount"] = amount
-    result["detected_time"] = extract_time(recognized_text)
+    result["detected_time"] = extract_time(analysis_text)
     result["recipient_guess"] = recipient
     result["trusted_payee_match"] = trusted_match
     result["link_domain"] = link_domain
     result["link_domains"] = link_domains
     result["findings"] = findings
     result["recommended_action"] = recommended_action(risk_level, findings)
+    result["evidence"] = [item.model_dump() for item in extract_payment_evidence(analysis_text, payees)]
     return result
 
 

@@ -4,6 +4,43 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+EvidenceField = Literal[
+    "amount",
+    "currency",
+    "upi_id",
+    "transaction_id",
+    "recipient",
+    "date",
+    "time",
+    "payment_status",
+    "phone_number",
+    "email",
+]
+EvidenceQuality = Literal["high", "medium", "low"]
+VerificationState = Literal["DETECTED", "MATCHED", "VERIFIED"]
+
+
+class EvidenceItem(BaseModel):
+    """One extracted or locally matched piece of submitted payment content.
+
+    VERIFIED is reserved for evidence independently confirmed by an
+    authoritative source. The current application has no such integration.
+    """
+
+    field: EvidenceField
+    value: str
+    normalized_value: str | None = None
+    source_snippet: str | None = Field(default=None, max_length=240)
+    extraction_method: str = Field(min_length=1, max_length=80)
+    quality: EvidenceQuality | None = None
+    verification_state: VerificationState = Field(
+        description=(
+            "DETECTED means found in submitted text/OCR; MATCHED means matched "
+            "to a local record; VERIFIED is only for authoritative independent confirmation."
+        )
+    )
+
+
 class CheckCreate(BaseModel):
     source_type: Literal["file", "text", "url"]
     content: str = Field(min_length=1, max_length=12000)
@@ -26,6 +63,7 @@ class CheckRead(BaseModel):
     link_domains: list[str] = Field(default_factory=list)
     findings: list[str] = Field(default_factory=list)
     recommended_action: str | None = None
+    evidence: list[EvidenceItem] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

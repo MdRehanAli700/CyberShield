@@ -1,7 +1,35 @@
 import React from 'react'
-import { Activity, AlertTriangle, ArrowUpRight, Bell, BookOpen, Eye, Clock3, Download, FileCheck2, FileImage, HelpCircle, Headphones, LayoutDashboard, Link2, LogOut, Moon, Pencil, Plus, Search, Settings2, ShieldCheck, Sun, Trash2, Upload, UserRound, UsersRound, X, ChevronDown, CheckCircle2, Clock4, Building2, CircleHelp, Menu, ScanLine, MessageSquare, ChevronRight, Check, MoreHorizontal } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowUpRight, Bell, BookOpen, Eye, Clock3, Download, FileCheck2, FileImage, HelpCircle, Headphones, LayoutDashboard, Link2, LogOut, Moon, Pencil, Plus, Search, Settings2, ShieldCheck, Sun, Trash2, Upload, UserRound, UsersRound, X, ChevronDown, CheckCircle2, Clock4, Building2, CircleHelp, Menu, ScanLine, MessageSquare, ChevronRight, Check, MoreHorizontal, Mail, LockKeyhole } from 'lucide-react'
 import PasswordInput from './components/PasswordInput.jsx'
 import { apiUrl, timeoutSignal } from './lib/api.js'
+
+const AUTH_TOKEN_KEY = 'verifypay-token'
+const INTRO_SEEN_KEY = 'verifypay-intro-seen-v2'
+
+function readAuthToken() {
+  return window.localStorage.getItem(AUTH_TOKEN_KEY) || window.sessionStorage.getItem(AUTH_TOKEN_KEY) || ''
+}
+
+function storeAuthToken(token, rememberMe) {
+  window.localStorage.removeItem(AUTH_TOKEN_KEY)
+  window.sessionStorage.removeItem(AUTH_TOKEN_KEY)
+  const storage = rememberMe ? window.localStorage : window.sessionStorage
+  storage.setItem(AUTH_TOKEN_KEY, token)
+}
+
+function clearStoredAuthToken() {
+  window.localStorage.removeItem(AUTH_TOKEN_KEY)
+  window.sessionStorage.removeItem(AUTH_TOKEN_KEY)
+}
+
+function shouldShowIntro() {
+  try {
+    const navigationType = window.performance.getEntriesByType('navigation')[0]?.type
+    if (window.sessionStorage.getItem(INTRO_SEEN_KEY) === '1' && navigationType === 'reload') return false
+    window.sessionStorage.setItem(INTRO_SEEN_KEY, '1')
+  } catch { /* Play the intro if browser storage is unavailable. */ }
+  return true
+}
 
 function CyberShieldMark({ className = '', theme = 'dark' }) {
   const logoSrc = theme === 'light' ? '/cybershield-symbol-light.png' : '/cybershield-symbol-dark.png'
@@ -53,6 +81,69 @@ function NotificationMenu({ notifications, unreadCount, open, onToggle, onMarkAl
   </div>
 }
 
+const EVIDENCE_FIELD_LABELS = {
+  amount: 'Amount',
+  currency: 'Currency',
+  upi_id: 'UPI ID',
+  transaction_reference: 'Transaction reference',
+  recipient: 'Recipient',
+  date: 'Date',
+  time: 'Time',
+  payment_status: 'Payment status wording',
+  phone_number: 'Phone number',
+  email: 'Email address',
+}
+
+function formatEvidenceField(field) {
+  if (typeof field !== 'string' || !field.trim()) return 'Other evidence'
+  return EVIDENCE_FIELD_LABELS[field] || field
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, character => character.toUpperCase())
+}
+
+function EvidencePanel({ evidence, isHistorical = false }) {
+  const items = Array.isArray(evidence) ? evidence : []
+
+  if (items.length === 0) {
+    const message = isHistorical
+      ? "Evidence isn't available for this saved check."
+      : Array.isArray(evidence)
+        ? 'No structured evidence was extracted from this submission.'
+        : 'Structured evidence is unavailable for this response.'
+    return <section className="evidence-panel" aria-label="Detected evidence">
+      <header className="evidence-panel-heading"><span><strong>Detected evidence</strong><small>Information found in the submitted content</small></span></header>
+      <p className="evidence-empty">{message}</p>
+    </section>
+  }
+
+  return <section className="evidence-panel" aria-label="Detected evidence">
+    <header className="evidence-panel-heading"><span><strong>Detected evidence</strong><small>Information found in the submitted content</small></span></header>
+    <div className="evidence-grid">
+      {items.map((item, index) => {
+        const field = typeof item?.field === 'string' ? item.field : ''
+        const state = typeof item?.verification_state === 'string' ? item.verification_state.toUpperCase() : ''
+        const knownState = state === 'DETECTED' || state === 'MATCHED'
+        const stateLabel = state === 'DETECTED' ? 'DETECTED' : state === 'MATCHED' ? 'MATCHED' : 'STATE UNAVAILABLE'
+        const value = typeof item?.value === 'string' ? item.value : String(item?.value ?? '—')
+        const snippet = typeof item?.source_snippet === 'string' ? item.source_snippet : ''
+        const quality = typeof item?.quality === 'string' ? item.quality.toLowerCase() : ''
+        const paymentStatus = field === 'payment_status'
+        return <article className="evidence-card" key={`${field || 'other'}-${index}`}>
+          <div className="evidence-card-heading"><span>{formatEvidenceField(field)}</span><span className={`evidence-state${knownState ? ` is-${state.toLowerCase()}` : ' is-unknown'}`}>{stateLabel}</span></div>
+          <strong className="evidence-value">{value}</strong>
+          {quality && <span className={`evidence-quality is-${['high', 'medium', 'low'].includes(quality) ? quality : 'unknown'}`}>Quality: {['high', 'medium', 'low'].includes(quality) ? quality : 'not specified'}</span>}
+          {snippet && <blockquote className="evidence-snippet">{snippet}</blockquote>}
+          {state === 'DETECTED' && <small className="evidence-state-note">Information extracted from the submitted content.</small>}
+          {state === 'MATCHED' && <small className="evidence-state-note">Text matched against a locally stored trusted-payee record. This does not verify account ownership.</small>}
+          {!knownState && <small className="evidence-state-note">The verification state is unavailable; this item is not presented as verified.</small>}
+          {paymentStatus && <small className="evidence-state-note">Detected wording does not prove that a transaction settled.</small>}
+        </article>
+      })}
+    </div>
+  </section>
+}
+
 function TOTPSettingsControls({
   enabled, step, setStep, password, setPassword, secret, code, setCode,
   recoveryCodes, setRecoveryCodes, message, messageIsError, busy,
@@ -99,9 +190,7 @@ function App() {
   const [showMoreMenu, setShowMoreMenu] = React.useState(false)
   const [globalSearch, setGlobalSearch] = React.useState('')
   const [globalSearchOpen, setGlobalSearchOpen] = React.useState(false)
-  const [showIntro, setShowIntro] = React.useState(() => {
-    try { return !window.sessionStorage.getItem('verifypay-intro-played') && !window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
-  })
+  const [showIntro, setShowIntro] = React.useState(shouldShowIntro)
   const [inputMode, setInputMode] = React.useState('upload')
   const [pastedText, setPastedText] = React.useState('')
   const [manualDetails, setManualDetails] = React.useState({ recipient: '', identifier: '', amount: '', date: '', reference: '', note: '' })
@@ -157,7 +246,8 @@ function App() {
   const [deletingPayeeId, setDeletingPayeeId] = React.useState(null)
   const [confirmDeletePayeeId, setConfirmDeletePayeeId] = React.useState(null)
   const payeeNameInputRef = React.useRef(null)
-  const [authToken, setAuthToken] = React.useState(() => window.sessionStorage.getItem('verifypay-token') || '')
+  const [authToken, setAuthToken] = React.useState(readAuthToken)
+  const [rememberMe, setRememberMe] = React.useState(() => window.localStorage.getItem('verifypay-remember-me') !== 'false')
   const [currentUser, setCurrentUser] = React.useState(null)
   const [linkedOAuthProviders, setLinkedOAuthProviders] = React.useState([])
   const [googleLinkBusy, setGoogleLinkBusy] = React.useState(false)
@@ -206,15 +296,17 @@ function App() {
   const [totpMessage, setTotpMessage] = React.useState('')
   const [totpMessageIsError, setTotpMessageIsError] = React.useState(false)
   const [totpBusy, setTotpBusy] = React.useState(false)
-  const finishIntro = React.useCallback(() => {
-    try { window.sessionStorage.setItem('verifypay-intro-played', 'true') } catch { /* The animation can still finish without storage. */ }
-    setShowIntro(false)
-  }, [])
+  const finishIntro = React.useCallback(() => setShowIntro(false), [])
   React.useEffect(() => {
-    if (!showIntro) return undefined
+    if (!authToken || !rememberMe || window.localStorage.getItem(AUTH_TOKEN_KEY)) return
+    const sessionToken = window.sessionStorage.getItem(AUTH_TOKEN_KEY)
+    if (sessionToken === authToken) storeAuthToken(sessionToken, true)
+  }, [authToken, rememberMe])
+  React.useEffect(() => {
+    if (!showIntro || !authReady) return undefined
     const timer = window.setTimeout(finishIntro, 3600)
     return () => window.clearTimeout(timer)
-  }, [showIntro, finishIntro])
+  }, [showIntro, finishIntro, authReady])
   const passwordConfirmationValid = newPassword.length >= 10 && newPassword === confirmNewPassword
   const normalizedPayeeSearch = payeeSearch.trim().toLocaleLowerCase()
   const filteredPayees = trustedPayees
@@ -308,7 +400,7 @@ function App() {
       headers: { ...(options.headers || {}), ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
     })
     if (response.status === 401) {
-      window.sessionStorage.removeItem('verifypay-token')
+      clearStoredAuthToken()
       setAuthToken('')
       setAuthMode('login')
       clearAccountData()
@@ -393,7 +485,7 @@ function App() {
             setAuthError('')
             return
           }
-          window.sessionStorage.setItem('verifypay-token', result.access_token)
+          storeAuthToken(result.access_token, rememberMe)
           if (result.user?.theme === 'dark' || result.user?.theme === 'light') setTheme(result.user.theme)
           setCurrentUser(result.user)
           setAuthToken(result.access_token)
@@ -405,7 +497,7 @@ function App() {
     }
     const token = url.searchParams.get('reset_token')
     if (token) {
-      window.sessionStorage.removeItem('verifypay-token')
+      clearStoredAuthToken()
       setAuthToken('')
       setAuthResetToken(token)
       setAuthMode('reset')
@@ -416,7 +508,7 @@ function App() {
     }
     const verificationToken = url.searchParams.get('verify_email_token')
     if (verificationToken) {
-      window.sessionStorage.removeItem('verifypay-token')
+      clearStoredAuthToken()
       setAuthToken('')
       setAuthMode('login')
       setAuthError('')
@@ -567,7 +659,7 @@ function App() {
       .then(async ([checksResponse, payeesResponse, statsResponse, userResponse]) => {
         if (!active) return
         if ([checksResponse, payeesResponse, statsResponse, userResponse].some(response => response.status === 401)) {
-          window.sessionStorage.removeItem('verifypay-token')
+          clearStoredAuthToken()
           setAuthToken('')
           setAuthMode('login')
           clearAccountData()
@@ -732,7 +824,7 @@ function App() {
         })
         const result = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(result.detail || 'Two-factor verification failed. Check the code and try again.')
-        window.sessionStorage.setItem('verifypay-token', result.access_token)
+        storeAuthToken(result.access_token, rememberMe)
         if (result.user?.theme === 'dark' || result.user?.theme === 'light') setTheme(result.user.theme)
         setCurrentUser(result.user)
         setAuthToken(result.access_token)
@@ -816,7 +908,7 @@ function App() {
         }
         return
       }
-      window.sessionStorage.setItem('verifypay-token', result.access_token)
+      storeAuthToken(result.access_token, rememberMe)
       if (result.user?.theme === 'dark' || result.user?.theme === 'light') setTheme(result.user.theme)
       setCurrentUser(result.user)
       setAuthToken(result.access_token)
@@ -858,7 +950,7 @@ function App() {
 
   const signOut = async () => {
     try { await apiFetch('/api/auth/session', { method: 'DELETE' }) } catch {}
-    window.sessionStorage.removeItem('verifypay-token')
+    clearStoredAuthToken()
     setSignOutConfirming(false)
     setAuthToken('')
     setAuthMode('login')
@@ -889,7 +981,7 @@ function App() {
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.detail || 'Could not change your password.')
-      window.sessionStorage.setItem('verifypay-token', result.access_token)
+      storeAuthToken(result.access_token, window.localStorage.getItem(AUTH_TOKEN_KEY) !== null)
       setAuthToken(result.access_token)
       setCurrentPassword('')
       setNewPassword('')
@@ -1119,7 +1211,7 @@ function App() {
       ...(scanResult.detected_amount ? [`Amount detected: ${scanResult.detected_amount}`] : []),
       ...(scanResult.recipient_guess ? [`Recipient guess: ${scanResult.recipient_guess}`] : []),
       ...(scanResult.link_domains?.length ? [`Link domains: ${scanResult.link_domains.join(', ')}`] : scanResult.link_domain ? [`Link domain: ${scanResult.link_domain}`] : []),
-      ...(scanResult.trusted_payee_match ? [`Trusted-payee text match: ${scanResult.trusted_payee_match} (not verified)`] : []),
+      ...(scanResult.trusted_payee_match ? [`Trusted-payee text match for the identified recipient: ${scanResult.trusted_payee_match} (not account-ownership verification)`] : []),
       `Signals: ${scanResult.findings?.length ? scanResult.findings.join('; ') : 'No warning patterns identified by these basic rules.'}`,
       `Suggested next step: ${scanResult.recommended_action || 'Confirm payment details independently before sending money.'}`,
       'This check cannot confirm whether a payment is safe or fraudulent.',
@@ -1143,7 +1235,7 @@ function App() {
       `Input type: ${scanResult.source_type}`,
       `Amount detected: ${scanResult.detected_amount || 'Not detected'}`,
       `Recipient guess: ${scanResult.recipient_guess || 'Not identified'}`,
-      `Trusted-payee text match: ${scanResult.trusted_payee_match || 'None'}`,
+      `Trusted-payee text match for the identified recipient: ${scanResult.trusted_payee_match || 'None'} (does not verify account ownership)`,
       `Link domains: ${scanResult.link_domains?.length ? scanResult.link_domains.join(', ') : scanResult.link_domain || 'None'}`,
       '',
       'Summary',
@@ -1298,7 +1390,7 @@ function App() {
         const problem = await response.json().catch(() => ({}))
         throw new Error(problem.detail || 'Could not delete this account.')
       }
-      window.sessionStorage.removeItem('verifypay-token')
+      clearStoredAuthToken()
       setAuthToken('')
       setAuthMode('login')
       setDeleteAccountConfirming(false)
@@ -1335,24 +1427,24 @@ function App() {
     }
   }
 
-  if (!authReady) return <div className="auth-loading">Opening your secure workspace…{showIntro && <OpeningAnimation onSkip={finishIntro} theme={theme}/>}</div>
-  if (!authToken) return <main className="auth-screen"><section className="auth-showcase"><a className="auth-brand" href="#signin"><span className="auth-brand-mark"><CyberShieldMark theme={theme}/></span><span><strong>Cyber<span>Shield</span></strong><small>TRUSTED TRANSACTIONS</small></span></a><div className="auth-art" aria-hidden="true"><div className="auth-orbit auth-orbit-one"/><div className="auth-orbit auth-orbit-two"/><div className="auth-shield"><CyberShieldMark theme={theme}/></div></div><p className="auth-showcase-kicker">AI-POWERED PAYMENT SAFETY</p><h2>Verify Before<br/><span>You Pay.</span></h2><p className="auth-showcase-copy">Analyze payment requests, detect scam signals and make safer decisions.</p><ul className="auth-feature-list"><li><FileImage size={17}/><span><strong>Scan &amp; Analyze</strong><small>Upload screenshots, invoices or links.</small></span></li><li><ShieldCheck size={17}/><span><strong>Spot warning signals</strong><small>Rule-based patterns for a preliminary risk check.</small></span></li><li><UsersRound size={17}/><span><strong>Stay Protected</strong><small>Compare details with your trusted payees.</small></span></li></ul></section><form className={`auth-card${mfaChallengeToken ? ' is-mfa-challenge' : ''}`} id="signin" onSubmit={submitAuth}>
+  if (!authReady) return <div className="auth-loading">Opening your secure workspace…</div>
+  if (!authToken) return <main className="auth-screen"><header className="auth-header"><a className="auth-brand" href="#auth-about" aria-label="CyberShield VerifyPay home"><span className="auth-brand-mark"><CyberShieldMark theme={theme}/></span><span><strong>Cyber<span>Shield</span></strong><small>VerifyPay</small></span></a><nav aria-label="Sign-in page"><a href="#auth-about">About</a><a href="#auth-security">Security</a><a href="#auth-help">Help</a></nav><button className="auth-theme-toggle" type="button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Moon size={15}/> : <Sun size={15}/>}<span/></button></header><div className="auth-main"><section className="auth-showcase" id="auth-about"><div className="auth-art" aria-hidden="true"><div className="auth-orbit auth-orbit-one"/><div className="auth-orbit auth-orbit-two"/><div className="auth-shield"><CyberShieldMark theme={theme}/></div></div><p className="auth-showcase-kicker">AI-POWERED PAYMENT SAFETY</p><h2>Verify Before<br/><span>You Pay.</span></h2><p className="auth-showcase-copy">Analyze payment requests, detect scam signals and make safer decisions.</p><ul className="auth-feature-list" id="auth-security"><li><FileImage size={17}/><span><strong>Scan &amp; Analyze</strong><small>Upload screenshots, invoices or links.</small></span></li><li><ShieldCheck size={17}/><span><strong>Spot warning signals</strong><small>Rule-based patterns for a preliminary risk check.</small></span></li><li><UsersRound size={17}/><span><strong>Stay Protected</strong><small>Compare details with your trusted payees.</small></span></li></ul><div className="auth-proof-strip" aria-label="How VerifyPay works"><div><strong>4 ways</strong><small>to check a request</small></div><i/><div><strong>3 levels</strong><small>of risk signals</small></div><i/><div><strong>Link text</strong><small>checked without visiting</small></div></div></section><form className={`auth-card${mfaChallengeToken ? ' is-mfa-challenge' : ''}`} id="signin" onSubmit={submitAuth}>
     {(authMode === 'login' || authMode === 'register') && <div className="auth-mode-tabs" role="tablist" aria-label="Sign-in options"><button type="button" role="tab" aria-selected={authMode === 'login'} className={authMode === 'login' ? 'is-active' : ''} onClick={() => { setAuthMode('login'); setAuthError(''); setAuthFeedback('') }}>Sign In</button><button type="button" role="tab" aria-selected={authMode === 'register'} className={authMode === 'register' ? 'is-active' : ''} onClick={() => { setAuthMode('register'); setAuthError(''); setAuthFeedback('') }}>Create Account</button></div>}
-    <span className="auth-logo"><CyberShieldMark theme={theme}/></span><p className="eyebrow">CYBERSHIELD · VERIFYPAY</p>
-    <h1>{authMode === 'login' ? 'Welcome back' : authMode === 'register' ? 'Create your account' : authMode === 'forgot' ? 'Reset your password' : authMode === 'reset' ? 'Choose a new password' : 'Verify your email'}</h1>
-    <p className="auth-intro">{authMode === 'login' ? 'Sign in to see your saved payment checks and trusted payees.' : authMode === 'register' ? 'Create an account to keep your checks and trusted payees separate.' : authMode === 'forgot' ? 'Enter your account email and we’ll send a reset link if it matches.' : authMode === 'reset' ? 'Choose a new password for your VerifyPay account.' : 'Enter the address you registered with and we’ll send a fresh verification link if needed.'}</p>
+    <p className="eyebrow">CYBERSHIELD · VERIFYPAY</p>
+    <h1>{authMode === 'login' ? 'Welcome Back!' : authMode === 'register' ? 'Create your account' : authMode === 'forgot' ? 'Reset your password' : authMode === 'reset' ? 'Choose a new password' : 'Verify your email'}</h1>
+    <p className="auth-intro">{authMode === 'login' ? 'Sign in to continue to CyberShield VerifyPay.' : authMode === 'register' ? 'Create an account to keep your checks and trusted payees separate.' : authMode === 'forgot' ? 'Enter your account email and we’ll send a reset link if it matches.' : authMode === 'reset' ? 'Choose a new password for your VerifyPay account.' : 'Enter the address you registered with and we’ll send a fresh verification link if needed.'}</p>
     {apiStatus !== 'connected' && apiStatus !== 'checking' && !authError && <p className="auth-error" role="status">{apiStatus === 'database-offline' ? 'PostgreSQL is not responding. Start the PostgreSQL service in Windows, then refresh this page.' : 'VerifyPay cannot reach the backend. In VS Code, start the backend server, then refresh this page.'}</p>}
-    {authMode !== 'reset' && <><label className="field-label" htmlFor="account-email">Email</label><input id="account-email" className="payee-input" type="email" autoComplete="email" required={!mfaChallengeToken} maxLength={254} value={authEmail} onChange={event => { setAuthEmail(event.target.value); setAuthError(''); setAuthFeedback('') }} placeholder="you@example.com" disabled={authBusy}/></>}
-    {(authMode === 'login' || authMode === 'register') && <><label className="field-label" htmlFor="account-password">Password</label><PasswordInput id="account-password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} required={!mfaChallengeToken} minLength={10} maxLength={128} value={authPassword} onChange={event => { setAuthPassword(event.target.value); setAuthError('') }} placeholder={authMode === 'register' ? 'At least 10 characters' : 'Your password'} disabled={authBusy}/></>}
-    {authMode === 'login' && <div className="auth-login-options"><span className="auth-session-note">Sign-in lasts for this browser session</span><button type="button" onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthFeedback('') }}>Forgot password?</button></div>}
+    {authMode !== 'reset' && <><label className="field-label" htmlFor="account-email">Email address</label><div className="auth-email-control"><Mail size={17} aria-hidden="true"/><input id="account-email" className="payee-input" type="email" autoComplete="email" required={!mfaChallengeToken} maxLength={254} value={authEmail} onChange={event => { setAuthEmail(event.target.value); setAuthError(''); setAuthFeedback('') }} placeholder="you@example.com" disabled={authBusy}/></div></>}
+    {(authMode === 'login' || authMode === 'register') && <><label className="field-label" htmlFor="account-password">Password</label><div className="auth-password-control"><LockKeyhole size={17} aria-hidden="true"/><PasswordInput id="account-password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} required={!mfaChallengeToken} minLength={10} maxLength={128} value={authPassword} onChange={event => { setAuthPassword(event.target.value); setAuthError('') }} placeholder={authMode === 'register' ? 'At least 10 characters' : 'Enter your password'} disabled={authBusy}/></div></>}
+    {authMode === 'login' && <div className="auth-login-options"><label><input type="checkbox" checked={rememberMe} onChange={event => { setRememberMe(event.target.checked); window.localStorage.setItem('verifypay-remember-me', String(event.target.checked)) }}/>Keep me signed in on this device</label><button type="button" onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthFeedback('') }}>Forgot password?</button></div>}
     {(authMode === 'register' || authMode === 'reset') && <><small className="auth-hint">Use at least 10 characters. Never reuse a password from another account.</small>{authMode === 'reset' && <><label className="field-label" htmlFor="account-password">New password</label><PasswordInput id="account-password" autoComplete="new-password" required minLength={10} maxLength={128} value={authPassword} onChange={event => { setAuthPassword(event.target.value); setAuthError('') }} placeholder="At least 10 characters" disabled={authBusy}/></>}<label className="field-label" htmlFor="account-confirm-password">{authMode === 'reset' ? 'Confirm new password' : 'Confirm password'}</label><PasswordInput id="account-confirm-password" autoComplete="new-password" required minLength={10} maxLength={128} value={authConfirmPassword} onChange={event => { setAuthConfirmPassword(event.target.value); setAuthError('') }} placeholder="Type your password again" disabled={authBusy}/></>}
     {mfaChallengeToken && <><label className="field-label" htmlFor="mfa-code">Authenticator or recovery code</label><input id="mfa-code" className="payee-input" type="text" autoComplete="one-time-code" required maxLength={20} value={mfaCode} onChange={event => { setMfaCode(event.target.value); setAuthError('') }} placeholder="6-digit code or recovery code" disabled={authBusy}/><p className="auth-switch auth-mfa-switch"><button type="button" disabled={authBusy} onClick={() => { setMfaChallengeToken(''); setMfaCode(''); setAuthError(''); setAuthFeedback('') }}>Start over</button></p></>}    {authFeedback && <p className="auth-success" role="status">{authFeedback}</p>}{authError && <p className="auth-error" role="alert">{authError}</p>}
     <button className="primary-button auth-submit" type="submit" disabled={authBusy}>{authBusy ? 'Please wait…' : authMode === 'login' && mfaChallengeToken ? 'Verify and sign in' : authMode === 'login' ? 'Sign in' : authMode === 'register' ? 'Create account' : authMode === 'forgot' ? 'Send reset link' : authMode === 'reset' ? 'Reset password' : 'Resend verification email'} <ArrowUpRight size={16}/></button>
-    {authMode === 'login' && <><div className="auth-or-divider"><span>OR CONTINUE WITH</span></div><button className="auth-provider-button" type="button" disabled={authBusy} onClick={() => startProviderSignIn('google')}><GoogleMark/>Continue with Google</button></>}
+    {authMode === 'login' && <><div className="auth-or-divider"><span>OR CONTINUE WITH</span></div><button className="auth-provider-button" type="button" disabled={authBusy} onClick={() => startProviderSignIn('google')}><GoogleMark/>Continue with Google</button><button className="auth-provider-button auth-provider-disabled" type="button" disabled aria-label="Microsoft sign-in coming soon"><span className="microsoft-mark" aria-hidden="true"><i/><i/><i/><i/></span>Continue with Microsoft <small>Coming soon</small></button></>}
     {authMode !== 'verify' && <p className="auth-switch">{authMode === 'login' || authMode === 'forgot' || authMode === 'reset' ? 'New to VerifyPay?' : 'Already have an account?'} <button type="button" disabled={authBusy} onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError(''); setAuthFeedback(''); setAuthPassword(''); setAuthConfirmPassword('') }}>{authMode === 'register' ? 'Sign in' : 'Create account'}</button></p>}
     {(authMode === 'forgot' || authMode === 'reset' || authMode === 'verify') && <p className="auth-switch"><button type="button" disabled={authBusy} onClick={() => { setAuthMode('login'); setAuthError(''); setAuthFeedback(''); setAuthPassword(''); setAuthConfirmPassword('') }}>Back to sign in</button></p>}
-    <p className="auth-local-note">{authMode === 'reset' ? 'Password reset links expire after 30 minutes and can only be used once.' : authMode === 'verify' ? 'Verification links expire after 30 minutes and can only be used once.' : 'Public learning demo: use a unique password and fake payment examples. Do not enter real payment details or sensitive personal information.'}</p>
-  </form>{showIntro && <OpeningAnimation onSkip={finishIntro} theme={theme}/>}</main>
+    <p className="auth-local-note">{authMode === 'reset' ? 'Password reset links expire after 30 minutes and can only be used once.' : authMode === 'verify' ? 'Verification links expire after 30 minutes and can only be used once.' : 'Learning demo: use a unique password and fake payment examples.'}</p>
+  </form></div><footer className="auth-footer" id="auth-help"><span>© 2026 CyberShield VerifyPay. Verify before you pay.</span><span><a href="#auth-about">About</a><i/><a href="#auth-security">Security</a><i/><a href="#auth-help">Help</a></span></footer>{showIntro && <OpeningAnimation onSkip={finishIntro} theme={theme}/>}</main>
 
   return (
     <div className="app-frame">
@@ -1420,7 +1512,7 @@ function App() {
                       </> : activeItem === 'Payment history' ? <>
             <section className="verify-heading"><p className="eyebrow">SAVED ACTIVITY</p><h1>Payment history</h1><p>Your saved checks for this account. Open a result to review its score and explanation.</p></section>
             <section className="history-stats" aria-label="Payment history summary"><article><span className="metric-icon blue"><FileCheck2 size={18}/></span><strong>{activityStats.checks}</strong><small>Total Checks</small></article><article><span className="metric-icon green"><ShieldCheck size={18}/></span><strong>{historyChecks.filter(check => check.risk_level === 'low').length}</strong><small>Low Risk · loaded</small></article><article><span className="metric-icon violet"><Activity size={18}/></span><strong>{historyChecks.filter(check => check.risk_level === 'medium').length}</strong><small>Medium Risk · loaded</small></article><article><span className="metric-icon"><AlertTriangle size={18}/></span><strong>{historyChecks.filter(check => check.risk_level === 'high').length}</strong><small>High Risk · loaded</small></article></section>            <div className="history-filters"><label>Risk level<select disabled={historyRefreshing} value={historyRiskFilter} onChange={event => setHistoryRiskFilter(event.target.value)}><option value="all">All levels</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Check type<select disabled={historyRefreshing} value={historySourceFilter} onChange={event => setHistorySourceFilter(event.target.value)}><option value="all">All types</option><option value="file">Image upload</option><option value="text">Pasted details</option><option value="url">Payment link</option></select></label><label className="history-search-label">Search saved checks<input type="search" maxLength={120} value={historySearch} onChange={event => setHistorySearch(event.target.value)} placeholder="Search labels or explanations" aria-label="Search saved payment checks by label or explanation"/></label></div>
-            <section className="history-list" aria-busy={historyRefreshing}>{historyRefreshing && <p className="history-refresh-note" role="status">Refreshing saved checks…</p>}{activityStats.checks > 0 && <div className="history-export-row"><button className="history-export" type="button" disabled={historyExporting || historyRefreshing || historySearchPending} onClick={exportHistory}><Download size={15}/>{historyExporting ? 'Preparing download…' : historyRiskFilter !== 'all' || historySourceFilter !== 'all' || debouncedHistorySearch ? 'Download filtered CSV' : 'Download all as CSV'}</button><button className="history-export" type="button" disabled={historyRefreshing || historySearchPending} onClick={() => window.print()}><FileCheck2 size={15}/>Print / save as PDF</button></div>}{historyChecks.length ? historyChecks.map(check => <details className="history-detail" key={check.id}><summary className="history-row"><span className="metric-icon violet"><Clock3 size={17}/></span><span><strong>{check.input_label}</strong><small>Saved {new Date(check.created_at).toLocaleString()}</small></span><span className={`risk-pill risk-${check.risk_level}`}>PRELIMINARY · {check.risk_level.toUpperCase()}</span><span className="history-score">{check.risk_score}/100</span></summary><div className="history-explanation"><strong>Why this signal was assigned</strong><p>{check.explanation}</p><small>Rules-based signal, not a percentage chance of fraud. It does not verify account ownership or confirm whether a payment is safe.</small>{confirmDeleteCheckId === check.id ? <div className="inline-delete-confirm" role="group" aria-label="Confirm deleting this saved check"><span>Delete this check? This cannot be undone.</span><button className="text-button" type="button" disabled={deletingCheckId === check.id} onClick={() => setConfirmDeleteCheckId(null)}>Cancel</button><button className="confirm-delete-button" type="button" disabled={deletingCheckId === check.id} onClick={() => deleteCheck(check)}>{deletingCheckId === check.id ? 'Deleting…' : 'Delete'}</button></div> : <button className="delete-history-entry" type="button" onClick={() => setConfirmDeleteCheckId(check.id)}><Trash2 size={14}/>Delete this check</button>}</div></details>) : <div className="payee-empty"><FileCheck2 size={23}/><strong>{activityStats.checks > 0 ? 'No checks match these filters' : 'No checks saved yet'}</strong><span>{activityStats.checks > 0 ? 'Try changing or clearing the filters above.' : 'Run your first payment check to get started.'}</span>{activityStats.checks > 0 ? <button type="button" className="text-button" onClick={() => { setHistoryRiskFilter('all'); setHistorySourceFilter('all'); setHistorySearch('') }}>Clear filters</button> : <button type="button" className="text-button" onClick={openVerifier}>Check a payment</button>}</div>}{historyError && <div className="history-error" role="alert"><p>{historyError}</p><button className="text-button" type="button" onClick={() => setActivityRefreshKey(current => current + 1)}>Try again</button></div>}{hasMoreChecks && <button className="text-button history-load-more" type="button" disabled={historyLoading || historyRefreshing || historySearchPending} onClick={loadMoreChecks}>{historyLoading ? 'Loading…' : historySearchPending ? 'Applying search…' : 'Load more checks'}</button>}</section>
+            <section className="history-list" aria-busy={historyRefreshing}>{historyRefreshing && <p className="history-refresh-note" role="status">Refreshing saved checks…</p>}{activityStats.checks > 0 && <div className="history-export-row"><button className="history-export" type="button" disabled={historyExporting || historyRefreshing || historySearchPending} onClick={exportHistory}><Download size={15}/>{historyExporting ? 'Preparing download…' : historyRiskFilter !== 'all' || historySourceFilter !== 'all' || debouncedHistorySearch ? 'Download filtered CSV' : 'Download all as CSV'}</button><button className="history-export" type="button" disabled={historyRefreshing || historySearchPending} onClick={() => window.print()}><FileCheck2 size={15}/>Print / save as PDF</button></div>}{historyChecks.length ? historyChecks.map(check => <details className="history-detail" key={check.id}><summary className="history-row"><span className="metric-icon violet"><Clock3 size={17}/></span><span><strong>{check.input_label}</strong><small>Saved {new Date(check.created_at).toLocaleString()}</small></span><span className={`risk-pill risk-${check.risk_level}`}>PRELIMINARY · {check.risk_level.toUpperCase()}</span><span className="history-score">{check.risk_score}/100</span></summary><div className="history-explanation"><strong>Why this signal was assigned</strong><p>{check.explanation}</p><small>Rules-based signal, not a percentage chance of fraud. It does not verify account ownership or confirm whether a payment is safe.</small><EvidencePanel evidence={check.evidence} isHistorical/><div className="history-explanation-actions">{confirmDeleteCheckId === check.id ? <div className="inline-delete-confirm" role="group" aria-label="Confirm deleting this saved check"><span>Delete this check? This cannot be undone.</span><button className="text-button" type="button" disabled={deletingCheckId === check.id} onClick={() => setConfirmDeleteCheckId(null)}>Cancel</button><button className="confirm-delete-button" type="button" disabled={deletingCheckId === check.id} onClick={() => deleteCheck(check)}>{deletingCheckId === check.id ? 'Deleting…' : 'Delete'}</button></div> : <button className="delete-history-entry" type="button" onClick={() => setConfirmDeleteCheckId(check.id)}><Trash2 size={14}/>Delete this check</button>}</div></div></details>) : <div className="payee-empty"><FileCheck2 size={23}/><strong>{activityStats.checks > 0 ? 'No checks match these filters' : 'No checks saved yet'}</strong><span>{activityStats.checks > 0 ? 'Try changing or clearing the filters above.' : 'Run your first payment check to get started.'}</span>{activityStats.checks > 0 ? <button type="button" className="text-button" onClick={() => { setHistoryRiskFilter('all'); setHistorySourceFilter('all'); setHistorySearch('') }}>Clear filters</button> : <button type="button" className="text-button" onClick={openVerifier}>Check a payment</button>}</div>}{historyError && <div className="history-error" role="alert"><p>{historyError}</p><button className="text-button" type="button" onClick={() => setActivityRefreshKey(current => current + 1)}>Try again</button></div>}{hasMoreChecks && <button className="text-button history-load-more" type="button" disabled={historyLoading || historyRefreshing || historySearchPending} onClick={loadMoreChecks}>{historyLoading ? 'Loading…' : historySearchPending ? 'Applying search…' : 'Load more checks'}</button>}</section>
           </> : activeItem === 'Verify a payment' ? <>
             <section className="verify-heading"><button className="back-link" type="button" onClick={() => { setActiveItem(scanStep >= 2 ? 'Payment history' : 'Overview'); if (scanStep >= 2) setInputReady(false) }}>← {scanStep >= 2 ? 'Back to payment history' : 'Back to overview'}</button><p className="eyebrow">PAYMENT SAFETY CHECK</p><h1>{inputReady && scanStep >= 2 ? 'Payment Verification Report' : inputReady ? 'Analyzing your payment' : 'Check a Payment'}</h1><p>{inputReady && scanStep >= 2 ? 'Analysis complete. Review the preliminary signals and suggested next steps.' : inputReady ? 'Please wait while VerifyPay reviews your submission.' : 'Upload an image, paste a message, enter details, or inspect a link. Raw payment text is not saved to your account.'}</p></section>
             {!inputReady ? <><section className="verify-card">
@@ -1453,9 +1545,9 @@ function App() {
                 {[
                   { title: 'File Received', detail: inputMode === 'upload' ? 'Image uploaded successfully.' : 'Payment information received.' }, { title: inputMode === 'upload' ? 'Extracting Text (OCR)' : 'Preparing Payment Details', detail: inputMode === 'upload' ? 'Reading text from the submitted image.' : 'Organizing the submitted information.' }, { title: 'Analyzing Payment Details', detail: 'Checking the details for common warning patterns.' }, { title: 'Checking for Risk Indicators', detail: 'Reviewing any available signals and matches.' }, { title: 'Generating Report', detail: 'Preparing your preliminary result.' } ].map((step, index) => { const failed = scanFailed && index === failedScanStepIndex; const done = !scanFailed && (scanStep >= 2 || (scanPending && index === 0)) || (scanFailed && index === 0 && scanStep >= 1); const current = !scanFailed && scanPending && index === 2; return <div className={`scan-step${done ? ' is-done' : ''}${current ? ' is-current' : ''}${failed ? ' is-error' : ''}`} key={step.title} role="listitem" aria-current={current ? 'step' : undefined}><span className="scan-step-icon">{failed ? <span>!</span> : done ? <span>✓</span> : current ? <i/> : null}</span><span><strong>{step.title}</strong><small>{step.detail}</small></span><span className="scan-step-state">{failed ? 'FAILED' : done ? 'DONE' : current ? `${scanProgressPercent}%` : scanStep >= 2 ? 'READY' : 'PENDING'}</span></div> })}
               </div>
-              <div className="scan-live-panels"><article className="scan-live-details"><header><FileCheck2 size={16}/><strong>Extracted Details</strong></header>{[['Recipient', scanResult?.recipient_guess || manualDetails.recipient || (scanPending ? 'Reading payment details…' : 'Not identified')], ['Payment ID', scanResult?.trusted_payee_match || manualDetails.identifier || (scanPending ? 'Checking…' : 'Not detected')], ['Amount', scanResult?.detected_amount || manualDetails.amount || (scanPending ? 'Reading…' : 'Not detected')], ['Date & time', scanResult?.detected_time || manualDetails.date || (scanPending ? 'Reading…' : 'Not detected')], ['Link', scanResult?.link_domains?.join(', ') || scanResult?.link_domain || (scanPending ? 'Checking…' : 'No link found')] ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</article><article className="scan-live-analysis"><header><Activity size={16}/><strong>Live Analysis Preview</strong></header>{['Checking submitted information', 'Reviewing amount and recipient', 'Looking for warning patterns', 'Preparing a preliminary report'].map((item, index) => <div key={item} className={scanStep >= 2 || index < (scanPending ? 1 : 0) ? 'is-done' : index === 1 && scanPending ? 'is-current' : ''}><span>{scanStep >= 2 || index < (scanPending ? 1 : 0) ? '✓' : index === 1 && scanPending ? '◌' : '○'}</span>{item}</div>)}</article></div>
+              <div className="scan-live-panels"><article className="scan-live-details"><header><FileCheck2 size={16}/><strong>Extracted Details</strong></header>{[['Recipient', scanResult ? (scanResult.recipient_guess || 'Not identified') : manualDetails.recipient || (scanPending ? 'Reading payment details…' : 'Not identified')], ['Payment identifier', manualDetails.identifier || (scanPending ? 'Checking…' : 'Not detected')], ['Amount', scanResult?.detected_amount || manualDetails.amount || (scanPending ? 'Reading…' : 'Not detected')], ['Date & time', scanResult?.detected_time || manualDetails.date || (scanPending ? 'Reading…' : 'Not detected')], ['Link', scanResult?.link_domains?.join(', ') || scanResult?.link_domain || (scanPending ? 'Checking…' : 'No link found')] ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</article><article className="scan-live-analysis"><header><Activity size={16}/><strong>Live Analysis Preview</strong></header>{['Checking submitted information', 'Reviewing amount and recipient', 'Looking for warning patterns', 'Preparing a preliminary report'].map((item, index) => <div key={item} className={scanStep >= 2 || index < (scanPending ? 1 : 0) ? 'is-done' : index === 1 && scanPending ? 'is-current' : ''}><span>{scanStep >= 2 || index < (scanPending ? 1 : 0) ? '✓' : index === 1 && scanPending ? '◌' : '○'}</span>{item}</div>)}</article></div>
               <div className="scan-time-tip"><span><strong>Estimated time</strong><small>{scanPending ? 'Usually just a few seconds' : scanFailed ? 'Please review the message above' : 'Preliminary review complete'}</small><i><b style={{width:`${scanProgressPercent}%`}}/></i></span><span><CyberShieldMark theme={theme}/><small>VerifyPay checks patterns. Always confirm payment details independently.</small></span></div>
-              {scanStep >= 2 && (scanResult ? <div className="sample-result"><div className="sample-result-heading"><span className={`risk-pill risk-${scanResult.risk_level}`}>PRELIMINARY · {scanResult.risk_level.toUpperCase()}</span><strong>Signal score {scanResult.risk_score}/100</strong></div><div className={`risk-meter risk-${scanResult.risk_level}`} role="img" aria-label={`Risk signal score ${scanResult.risk_score} out of 100`}><span style={{ width: `${scanResult.risk_score}%` }}/></div><div className="risk-scale-labels"><span>Low · 0–34</span><span>Medium · 35–69</span><span>High · 70–100</span></div><p>{scanResult.explanation}</p><p className="match-caveat">This score is a rules-based signal, not a percentage chance of fraud.</p>{scanResult.findings?.length > 0 && <div className="finding-list"><strong>Signals that affected this score</strong><ul>{scanResult.findings.map((finding, index) => <li key={`${index}-${finding}`}>{finding}</li>)}</ul></div>}<div className="recommended-action"><strong>Suggested next step</strong><p>{scanResult.recommended_action || 'Confirm payment details independently before sending money.'}</p></div><div className="report-actions"><button className="text-button copy-summary-button" type="button" onClick={copyScanSummary}>Copy result summary</button><button className="history-export" type="button" onClick={downloadScanReport}><Download size={14}/>Download Report</button><button className="history-export" type="button" onClick={shareScanSummary}>Share summary</button></div>{copySummaryMessage && <p className="copy-summary-message" role={copySummaryMessageIsError ? 'alert' : 'status'}>{copySummaryMessage}</p>}<div className="detected-details"><div><span>Amount detected</span><strong>{scanResult.detected_amount || 'Not detected'}</strong></div><div><span>Recipient guess</span><strong>{scanResult.recipient_guess || 'Not identified'}</strong></div><div><span>Trusted-list text match</span><strong>{scanResult.trusted_payee_match ? `${scanResult.trusted_payee_match} mentioned` : 'No match found in text'}</strong></div>{(scanResult.link_domains?.length > 0 || scanResult.link_domain) && <div><span>{scanResult.link_domains?.length > 1 ? 'Link domains checked' : 'Link domain'}</span><strong>{scanResult.link_domains?.length ? scanResult.link_domains.join(', ') : scanResult.link_domain}</strong></div>}</div>{scanResult.trusted_payee_match && <p className="match-caveat">A text match only means the name or identifier appeared in the message. It does not verify who owns the account.</p>}{(scanResult.link_domains?.length > 0 || scanResult.link_domain) && <p className="match-caveat">Detected links were inspected as text only; VerifyPay does not open or visit them.</p>}{scanResult.ocr_text_preview && <details className="ocr-preview"><summary>View text read from image</summary><pre>{scanResult.ocr_text_preview}</pre></details>}<small>These rules can miss scams or flag ordinary messages. Check the payee independently before sending money.</small></div> : <div className="preview-notice"><AlertTriangle size={17}/><span><strong>{apiError ? 'Check could not finish' : 'Waiting for your result'}</strong><small>{apiError || 'The API is preparing the check result.'}</small></span>{apiError && <button className="text-button" type="button" onClick={startScanPreview}>Try again</button>}</div>)}
+              {scanStep >= 2 && (scanResult ? <div className="sample-result"><div className="sample-result-heading"><span className={`risk-pill risk-${scanResult.risk_level}`}>PRELIMINARY · {scanResult.risk_level.toUpperCase()}</span><strong>Signal score {scanResult.risk_score}/100</strong></div><div className={`risk-meter risk-${scanResult.risk_level}`} role="img" aria-label={`Risk signal score ${scanResult.risk_score} out of 100`}><span style={{ width: `${scanResult.risk_score}%` }}/></div><div className="risk-scale-labels"><span>Low · 0–34</span><span>Medium · 35–69</span><span>High · 70–100</span></div><p>{scanResult.explanation}</p><p className="match-caveat">This score is a rules-based signal, not a percentage chance of fraud.</p>{scanResult.findings?.length > 0 && <div className="finding-list"><strong>Signals that affected this score</strong><ul>{scanResult.findings.map((finding, index) => <li key={`${index}-${finding}`}>{finding}</li>)}</ul></div>}<EvidencePanel evidence={scanResult.evidence}/><div className="recommended-action"><strong>Suggested next step</strong><p>{scanResult.recommended_action || 'Confirm payment details independently before sending money.'}</p></div><div className="report-actions"><button className="text-button copy-summary-button" type="button" onClick={copyScanSummary}>Copy result summary</button><button className="history-export" type="button" onClick={downloadScanReport}><Download size={14}/>Download Report</button><button className="history-export" type="button" onClick={shareScanSummary}>Share summary</button></div>{copySummaryMessage && <p className="copy-summary-message" role={copySummaryMessageIsError ? 'alert' : 'status'}>{copySummaryMessage}</p>}<div className="detected-details">{!(Array.isArray(scanResult.evidence) && scanResult.evidence.some(item => item.field === 'amount')) && scanResult.detected_amount && <div><span>Amount detected</span><strong>{scanResult.detected_amount}</strong></div>}{!(Array.isArray(scanResult.evidence) && scanResult.evidence.some(item => item.field === 'recipient')) && scanResult.recipient_guess && <div><span>Recipient guess</span><strong>{scanResult.recipient_guess}</strong></div>}{scanResult.trusted_payee_match && <div><span>Trusted-payee text match</span><strong>{scanResult.trusted_payee_match} mentioned</strong></div>}{(scanResult.link_domains?.length > 0 || scanResult.link_domain) && <div><span>{scanResult.link_domains?.length > 1 ? 'Link domains checked' : 'Link domain'}</span><strong>{scanResult.link_domains?.length ? scanResult.link_domains.join(', ') : scanResult.link_domain}</strong></div>}</div>{scanResult.trusted_payee_match && <p className="match-caveat">This text match is against the identified recipient and a locally stored trusted-payee record. It does not verify account ownership.</p>}{(scanResult.link_domains?.length > 0 || scanResult.link_domain) && <p className="match-caveat">Detected links were inspected as text only; VerifyPay does not open or visit them.</p>}{scanResult.ocr_text_preview && <details className="ocr-preview"><summary>View text read from image</summary><pre>{scanResult.ocr_text_preview}</pre></details>}<small>These rules can miss scams or flag ordinary messages. Check the payee independently before sending money.</small></div> : <div className="preview-notice"><AlertTriangle size={17}/><span><strong>{apiError ? 'Check could not finish' : 'Waiting for your result'}</strong><small>{apiError || 'The API is preparing the check result.'}</small></span>{apiError && <button className="text-button" type="button" onClick={startScanPreview}>Try again</button>}</div>)}
               <div className="scan-footer"><span><span className="secure-dot"/> Raw text is not saved in the database</span>{scanStep === 3 && <div className="scan-actions"><button type="button" className="text-button" onClick={() => setInputReady(false)}>Back to input</button>{scanResult && <button type="button" className="text-button" onClick={startAnotherCheck}>Check another payment</button>}</div>}</div>
             </section>}
           </> : <>
